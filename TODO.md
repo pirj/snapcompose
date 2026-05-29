@@ -252,3 +252,72 @@ test count unchanged.
   lives in `test/fixtures/rails-app/` in the rlock repo today. Whether
   to keep it there (so framework integration tests use it) or move it
   here is TBD.
+
+## CI compose override — adoption-blocking
+
+Filed 2026-05-30 from the OSS Rails CI survey
+([`../meta/research-2026-05-30-rails-oss-ci-survey.md`](../meta/research-2026-05-30-rails-oss-ci-survey.md)).
+
+**Problem.** Among 100 actively-maintained Rails projects in
+[real-world-rails](https://github.com/eliotsykes/real-world-rails),
+~22 ship a `docker-compose.yml` whose `app` service has `build:`
+(production / Kamal shape) — and **all 22** keep CI on
+`ruby/setup-ruby + services: postgres redis`. The dev compose file
+is a laptop-`docker compose up` shortcut; the CI file (where it
+exists) is a separate `docker-compose.test.yml` / `.ci.yml` with
+infrastructure only. snapcompose's `docker-compose` plugin
+currently autodiscovers `docker-compose.yml` at the project root
+and runs `docker compose build && up -d` on whatever it finds —
+which for these projects means rebuilding the prod app image on
+every cold CI, which is exactly what they chose `ruby/setup-ruby
++ services:` to avoid.
+
+Without an override, snapcompose can't be adopted by these
+projects without asking them to restructure their existing dev
+compose file — which they will refuse.
+
+**What the feature looks like.**
+
+- [ ] **Path override** in `snapcompose.toml`:
+
+  ```toml
+  [docker-compose]
+  file = "docker-compose.ci.yml"
+  ```
+
+  Plugin reads `file` (if present) instead of falling back to the
+  `docker-compose.yml` autodiscover. Compatible with v0.2.x users
+  who don't set the key.
+
+- [ ] **Service-list filter** in `snapcompose.toml` (alternative,
+  same section):
+
+  ```toml
+  [docker-compose]
+  services = ["db", "redis"]
+  ```
+
+  Plugin runs `docker compose up -d db redis` instead of
+  `docker compose up -d` over everything. Useful when the project
+  doesn't want a second compose file and the dev compose has clean
+  service names.
+
+- [ ] **Both keys are optional, order of precedence: `services`
+  filter wins over `file`** (the override is what the project
+  *wants* in CI; the file is the *source*). Document the
+  interaction in [`docs/snapcompose-toml.md`](docs/snapcompose-toml.md).
+
+- [ ] **Bats integration test** in `test/`: fixture project with
+  `docker-compose.yml` (full stack) + `docker-compose.ci.yml`
+  (db only); assert snapcompose-with-override only brings up the
+  db, ignores the rest.
+
+**GTM impact (per `../meta/gtm-playbook.md`).** This feature is
+the prerequisite for the "snapcompose adoption — OSS Rails
+outreach" sub-section. Without it, the outreach surface is ~5
+projects (those that already do compose-in-CI); with it, the
+surface is ~22 active projects with measured CI duration savings.
+
+Ships as an additive `[docker-compose]` section in
+`snapcompose.toml`; default behaviour unchanged. Snapcompose minor
+bump alongside whatever else is in flight.
