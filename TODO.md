@@ -321,3 +321,80 @@ surface is ~22 active projects with measured CI duration savings.
 Ships as an additive `[docker-compose]` section in
 `snapcompose.toml`; default behaviour unchanged. Snapcompose minor
 bump alongside whatever else is in flight.
+
+## Canonical `[services.<name>]` declaration in `snapcompose.toml`
+
+Filed 2026-05-30 from the OSS Rails CI services-survey follow-up.
+
+**Motivation.** GHA `services:` is the dominant API surface for
+declaring container side-cars in CI workflows. Mirroring that
+shape in `snapcompose.toml` removes the conceptual mismatch
+between "what I declare in CI today" and "what I declare for
+snapcompose." Users copy-paste their `services:` block (minor
+syntax tweaks: `env` → `environment`, `options:` → translates to
+`healthcheck`) and snapcompose snapshots the running stack.
+
+**Schema:**
+
+```toml
+[services.db]
+image = "postgres:16-alpine"
+environment = { POSTGRES_PASSWORD = "dev" }
+ports = ["5432:5432"]
+options = "--health-cmd pg_isready --health-interval 2s"
+
+[services.redis]
+image = "redis:7-alpine"
+```
+
+**Implementation.** docker-compose plugin gets a second entry path:
+
+- [ ] If `snapcompose.toml` has any `[services.*]` sections, plugin
+      generates a transient `docker-compose.yml` from them
+      (`.snapcompose/services.docker-compose.yml`), runs
+      `docker compose -f <that> up -d`, waits healthchecks.
+      Otherwise falls back to autodiscover behaviour.
+- [ ] `[services.*]` and `[docker-compose] file = ...` are mutually
+      exclusive; specifying both is a hard error at snapcompose.toml
+      parse time.
+- [ ] Document the schema in `docs/snapcompose-toml.md` with a
+      side-by-side translation table (GHA `services:` ↔ snapcompose
+      `[services.*]` ↔ docker-compose `services:`).
+- [ ] Bats test: fixture with both styles, assert identical warm
+      state.
+
+**Snapshot semantics unchanged.** `snapshot_key` is the sha256 of
+the rendered transient compose file (which is deterministic from
+the `[services.*]` blocks). Cache hits + chain semantics work
+identically.
+
+## Phase 2 — GitLab CI adapter
+
+Filed 2026-05-30 (deferred). GitLab CI is the closest cousin to
+GHA: same `services:` keyword in `.gitlab-ci.yml` job blocks, same
+docker-runtime model, syntax nearly 1:1. Survey of OSS Rails put
+GitLab CI at ~5% of active projects (vs. ~85% on GitHub Actions),
+so this is **Phase 2 after PMF on GHA**, not parallel.
+
+What ships when this is picked up:
+
+- [ ] `setup-snapcompose-gitlab` — analogue of the existing GHA
+      composite action. Bash include in `.gitlab-ci.yml` that does
+      install (aq + rlock + snapcompose) + cache restore + cache
+      save via GitLab's built-in `cache:` keyword.
+- [ ] Documentation page mirroring `docs/example-snapcompose-ci.yml`
+      but for `.gitlab-ci.yml`.
+- [ ] One worked example in a popular GitLab-hosted Rails project
+      (likely on gitlab.com — find one as part of the OSS Rails
+      outreach campaign).
+
+**Out of scope:** CircleCI, Jenkins, Buildkite, Drone, Concourse,
+Azure Pipelines. CircleCI's docker-executor model is conceptually
+different (each job gets its own container with secondary
+service containers). Jenkins varies too much per setup. None
+warrant native support until measured demand.
+
+**snapcompose core stays platform-agnostic.** The qcow2 chain
+orchestration + plugin protocol + snapcompose.toml schema don't
+change between CI platforms. Only the install + cache-transport
+wrapper differs.
