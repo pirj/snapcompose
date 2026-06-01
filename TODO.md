@@ -398,3 +398,201 @@ warrant native support until measured demand.
 orchestration + plugin protocol + snapcompose.toml schema don't
 change between CI platforms. Only the install + cache-transport
 wrapper differs.
+
+## Architectural refactor wave — explicit activation + mise split
+
+Filed 2026-06-01 from the walking-skeleton debugging conversation.
+These four items are interconnected; ship them in one wave so the
+plugin protocol bumps once.
+
+### 1. `plugins = [...]` in `snapcompose.toml` (explicit activation)
+
+**Today.** A plugin enters the resolved chain through one of:
+- Trigger-file presence (`.ruby-version` → mise)
+- Transitive dep pull (`ruby-bundler.deps = ["mise"]`)
+- Explicit CLI arg (`rl new <plugin>`)
+- A synthesised `[prebuild.<name>]` section
+
+The trigger mechanism conflates "should this plugin even be in
+the chain?" with "does its work matter?". A project with
+`.python-version` instead of `.ruby-version` doesn't activate the
+mise plugin even though mise itself handles `.python-version`
+just fine. Same for projects that pin Ruby in `Gemfile` rather
+than `.ruby-version`. The list-of-triggers is hardcoded; mise
+upstream supports ~24 idiomatic config files; ours covers 4.
+
+**Proposed.** Add an explicit list to `snapcompose.toml`:
+
+```toml
+plugins = [
+  "docker-engine",
+  "docker-compose",
+  "mise",
+  "ruby-bundler",
+  # "npm",
+  # "uv",
+]
+```
+
+Semantics:
+- If the section is present, that's the **canonical activation
+  source**. The framework still resolves transitive deps (one
+  entry's `deps = [...]` pulls more plugins in), but does NOT
+  auto-detect by trigger.
+- If the section is absent, behave as today (back-compat).
+- Each entry is a concrete plugin name (`ruby-bundler`, `npm`,
+  `uv`, `poetry`), NOT a language shortcut. A package.json could
+  belong to npm OR pnpm; the user picks. Language shortcuts are
+  layered on top (see item 4).
+- If a plugin in the list has nothing to do (empty content for
+  its `snapshot_key` — e.g. mise is listed but no tool-version
+  files exist anywhere), emit a `warn` at chain-walking time:
+  "plugin 'mise' activated but no runtime versions declared;
+  layer will be a no-op snapshot slot."
+
+**Snapcompose-auto-CI compatibility.** A future
+`snapcompose-auto-CI` plugin (Phil's parallel session) can read
+the GitHub Actions workflow's `services:` block + detect
+`setup-ruby` etc., and generate this `plugins = [...]` list +
+`[services.*]` blocks on the fly. The explicit-list model makes
+that auto plugin trivially composable — it only needs to write
+TOML.
+
+**Implementation:**
+- [ ] Parse `plugins` array from `snapcompose.toml` in `snapc-run`.
+- [ ] When present, skip `detect_triggers` (or run it advisory-
+      only).
+- [ ] When empty-key plugin emits, warn but don't fail (it's a
+      valid no-op slot).
+- [ ] Doc table in `docs/snapcompose-toml.md` showing the four
+      activation paths and their precedence.
+- [ ] Bats: project with explicit `plugins = ["mise"]` but no
+      `.ruby-version` activates mise → warn → builds an empty
+      snapshot layer → cached normally.
+
+### 2. Drop redundant scp from mise / ruby-bundler / npm / uv / poetry / pnpm / cargo
+
+Same cleanup as F3 (docker-compose). All these plugins predate
+F2's auto-push and scp their config files into the VM
+separately. With F2, source arrives at
+`/home/rlock/repo/<subdir>` via git push before any plugin's
+`snapshot_build` runs. The scp loops are dead code.
+
+- [ ] mise: drop the `aq scp` of `mise.toml` / `.tool-versions`
+      / `.ruby-version` / `.nvmrc`. `cd "$SNAPC_VM_PROJECT_DIR"`
+      and run `mise install` — it'll read whatever's in the
+      pushed source tree.
+- [ ] ruby-bundler: drop `aq scp` of `Gemfile` / `Gemfile.lock`.
+      `cd "$SNAPC_VM_PROJECT_DIR"` and `bundle install`.
+- [ ] Same for npm, uv, poetry, pnpm, cargo.
+
+Each is a 5-10 line change per plugin. Bats integration tests
+need re-validation.
+
+### 3. Split mise into mise-base + per-language runtimes
+
+**Today.** mise plugin = single snapshot layer = installs the
+mise binary AND every declared runtime (Ruby + Python + Node +
+...) in one go. Snapshot_key hashes all tool-version files
+together. **Any version bump invalidates the entire layer**,
+even if only one language's version moved.
+
+**Proposed.** Split:
+
+```
+mise-base              installs the mise binary (key: mise version)
+   ↓
+ruby-runtime           mise install ruby (key: .ruby-version + Gemfile ruby pin)
+python-runtime         mise install python (key: .python-version + pyproject.toml pin)
+nodejs-runtime         mise install node (key: .nvmrc / .node-version / package.json engines)
+go-runtime             mise install go (key: go.mod toolchain directive)
+rust-runtime           mise install rust (key: rust-toolchain.toml)
+   ↓
+ruby-bundler           deps = ["ruby-runtime"]
+npm                    deps = ["nodejs-runtime"]
+uv / poetry            deps = ["python-runtime"]
+cargo                  deps = ["rust-runtime"]
+```
+
+Then a polyglot project (Rails + Python sidecar + Node frontend)
+that bumps only the Ruby version invalidates `ruby-runtime` +
+`ruby-bundler` — Python and Node layers stay warm. Today this
+would invalidate the entire mise layer + every downstream.
+
+**Implementation:**
+- [ ] New plugins: `mise-base`, `ruby-runtime`, `python-runtime`,
+      `nodejs-runtime`, `go-runtime`, `rust-runtime`.
+- [ ] mise-base's snapshot_build installs only the mise binary.
+- [ ] Each `<lang>-runtime` plugin's snapshot_build runs
+      `mise install <lang>` after `cd "$SNAPC_VM_PROJECT_DIR"`.
+- [ ] snapshot_key per runtime hashes only the files relevant to
+      that language (see "Proposed" section above).
+- [ ] Update dep declarations:
+      - `ruby-bundler.deps = ["ruby-runtime"]` (was `["mise"]`)
+      - `npm.deps = ["nodejs-runtime"]`
+      - `uv.deps = ["python-runtime"]`
+      - `poetry.deps = ["python-runtime"]`
+      - `cargo.deps = ["rust-runtime"]`
+- [ ] Deprecate the monolithic `mise` plugin. Keep as a v0.2.x
+      alias that synthesises the new chain (back-compat for old
+      `snapcompose.toml` files).
+- [ ] Bats integration: polyglot fixture (Ruby + Python +
+      Node), assert independent invalidation when only one
+      `.X-version` changes.
+
+### 4. Language shortcuts (UX layer)
+
+Optional sugar on top of item 1's `plugins = [...]`:
+
+```toml
+plugins = [
+  "ruby",       # expands to [mise-base, ruby-runtime, ruby-bundler]
+  "nodejs",     # expands to [mise-base, nodejs-runtime, npm]  
+  "python",     # expands to [mise-base, python-runtime, uv]  
+                # (or poetry if poetry.lock present; or warn if ambiguous)
+]
+```
+
+Implementation:
+- [ ] Maintain a static expansion table in
+      `lib/plugin-shortcuts.sh` (or `snapcompose-toml.md` as
+      ref): `<shortcut> → [<expanded plugins>]`.
+- [ ] During chain resolution, expand shortcuts before passing
+      the list to `resolve_deps`.
+- [ ] When a shortcut is ambiguous (Python could be uv or
+      poetry; Node could be npm or pnpm), pick by lockfile
+      presence; if both lockfiles exist, error with "ambiguous
+      shortcut 'python'; specify 'uv' or 'poetry' explicitly."
+- [ ] Document the shortcut table in
+      `docs/snapcompose-toml.md`.
+
+**Naming guideline.** Shortcuts are introduced only where
+unambiguous (`ruby` → ruby-bundler tooling is essentially the
+only choice). For tooling-choice cases (Python's uv vs.
+poetry; Node's npm vs. pnpm vs. yarn), the user names the
+specific plugin. **Concrete plugin names always win** —
+shortcuts are convenience, not abstraction.
+
+### Why all four together
+
+The plugin protocol bumps once for this wave (the
+`mise` → `mise-base + *-runtime` split is the schema-changing
+bit; everything else is additive). Cleaner CHANGELOG, single
+bats-regression pass, single setup-snapcompose pin bump. Splitting
+across releases risks intermediate states where item 2 lands
+without item 1 and the activation behaviour gets confusing.
+
+**Anticipated outcome for the walking-skeleton.** With explicit
+`plugins = [...]` activation:
+
+- mise can no longer silently skip — it's in the list, so the
+  walker MUST process its iteration (or warn loudly if there's
+  nothing to do).
+- The "mise plugin's iteration mysteriously missing on cold
+  chain" bug (Task #22 in the conversation log) is probably
+  resolved or surfaces with a clear warning instead of a hidden
+  skip.
+
+We continue the walking-skeleton restructure to pg+redis-only
+in parallel; the bug becomes a deferred / merged item once this
+refactor lands.
