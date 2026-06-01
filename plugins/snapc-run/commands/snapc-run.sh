@@ -145,8 +145,26 @@ if [[ ! -d "$AQ_STATE_DIR/$vm_name" ]]; then
     fi
 
     if [[ ${#explicit_plugins[@]} -gt 0 ]]; then
-        info "Activating ${#explicit_plugins[@]} plugin(s) from snapcompose.toml: ${explicit_plugins[*]}"
-        local_triggered=("${explicit_plugins[@]}")
+        # Refactor wave step 4 — language shortcuts. Expand a small set
+        # of unambiguous "name your stack, not your tooling" shorthands
+        # before passing to resolve_deps. Only `ruby` is mapped today
+        # because Ruby's CI playbook has effectively one installer
+        # (Bundler) and one runtime manager (mise/rbenv-style). Node has
+        # npm/pnpm/yarn, Python has uv/poetry/pip — ambiguous, so users
+        # name the specific plugin explicitly.
+        expanded_plugins=()
+        for _entry in "${explicit_plugins[@]}"; do
+            case "$_entry" in
+                ruby)
+                    expanded_plugins+=("mise-base" "ruby-runtime" "ruby-bundler")
+                    ;;
+                *)
+                    expanded_plugins+=("$_entry")
+                    ;;
+            esac
+        done
+        info "Activating ${#expanded_plugins[@]} plugin(s) from snapcompose.toml: ${expanded_plugins[*]}"
+        local_triggered=("${expanded_plugins[@]}")
     else
         local_available=()
         _profile_mark "before discover_plugins"
