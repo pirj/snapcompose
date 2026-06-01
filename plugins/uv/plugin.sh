@@ -27,23 +27,16 @@ snapshot_build() {
 
     # F2 auto-push delivered uv.lock + pyproject.toml + .python-version
     # to $vm_project_dir before this snapshot_build runs. No scp needed.
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime.
     aq exec "$vm" sh <<SH
 set -eu
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
-# loudly rather than silently using a system Python (wrong version).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
-# Project must declare uv in mise.toml / .tool-versions. Falling back
-# to apk add uv would install against the system Python instead of
-# the mise-managed one. Fail loudly so the cause is visible.
 command -v uv >/dev/null 2>&1
 
-# uv sync reads pyproject.toml + uv.lock and resolves the project's
-# .venv. Incremental by nature: skips packages already linked into .venv
-# and skips downloads already in the global cache.
 uv sync --frozen
 RLOCK
 SH

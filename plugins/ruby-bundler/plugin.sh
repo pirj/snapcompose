@@ -37,6 +37,11 @@ snapshot_build() {
     # The project worktree (with Gemfile.lock) lives at
     # $SNAPC_VM_PROJECT_DIR (F1: monorepo-aware). `bundle install` runs
     # there so vendor/bundle lands alongside Gemfile.lock.
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime
+    # for the gory detail. Single-escape lets the inner RLOCK heredoc
+    # re-evaluate variables that should stay literal for the rlock
+    # shell, and the per-layer build crashes with "command: unbound
+    # variable" or "f: parameter not set" under set -u.
     aq exec "$vm" sh <<SH
 set -eu
 # Bundler builds native extensions; make sure the toolchain is present.
@@ -45,23 +50,16 @@ apk add build-base libffi-dev openssl-dev readline-dev yaml-dev zlib-dev
 
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"], so a
-# missing mise here is a regression upstream, not a runtime fallback
-# case. Fail loudly instead of silently using system Ruby (which would
-# install gems against the wrong Ruby version).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
 # Bundler must come from the mise-managed Ruby. If bundle isn't
 # resolvable, the project's Gemfile probably needs an explicit bundler
-# version pin via .bundler-version or Gemfile's gem "bundler". Fail
-# loudly so the user sees the actual cause rather than a phantom
-# system-bundler success.
+# version pin via .bundler-version or Gemfile's gem "bundler".
 command -v bundle >/dev/null 2>&1
 
 # bundle config set --local path vendor/bundle keeps gems in-tree so
-# the cache layer captures them. --jobs=4 parallelises downloads; --retry
-# tolerates transient network blips during the initial install.
+# the cache layer captures them.
 bundle config set --local path vendor/bundle
 bundle install --jobs=4 --retry=3
 RLOCK

@@ -30,23 +30,16 @@ snapshot_build() {
     # F2 auto-push delivered pnpm-lock.yaml + package.json + per-project
     # config files to $vm_project_dir before this snapshot_build runs.
     # No scp needed.
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime.
     aq exec "$vm" sh <<SH
 set -eu
-# Native build deps for any modules with node-gyp / sharp / etc.
 apk add build-base python3
 
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
-# loudly rather than silently using system Node (wrong version).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
-# Project must declare pnpm in mise.toml / .tool-versions / via
-# corepack's packageManager field in package.json. If pnpm still isn't
-# on PATH after mise activation + corepack auto-provision, fail —
-# don't npm install -g pnpm against the wrong Node, don't fall back
-# to system pnpm.
 if ! command -v pnpm >/dev/null 2>&1; then
     if command -v corepack >/dev/null 2>&1; then
         corepack enable pnpm
@@ -54,10 +47,6 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 command -v pnpm >/dev/null 2>&1
 
-# pnpm install honours the lockfile and works incrementally — only
-# packages absent from the store get fetched, only project node_modules
-# entries that differ get re-linked. --prefer-offline keeps already-cached
-# tarballs out of the network path entirely.
 pnpm install --prefer-offline
 RLOCK
 SH

@@ -27,26 +27,18 @@ snapshot_build() {
 
     # F2 auto-push delivered poetry.lock + pyproject.toml + .python-version
     # to $vm_project_dir before this snapshot_build runs. No scp needed.
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime.
     aq exec "$vm" sh <<SH
 set -eu
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
-# loudly rather than silently using a system Python (wrong version).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
-# Project must declare poetry (or python + a way to install poetry)
-# in mise.toml / .tool-versions. Falling back to apk's py3-poetry would
-# bind to the system Python — wrong version, hard-to-debug.
 command -v poetry >/dev/null 2>&1
 
-# Keep .venv inside the project so the cache layer captures it.
 poetry config virtualenvs.in-project true
 
-# poetry install --no-interaction reads pyproject.toml + poetry.lock
-# and installs into .venv. Incremental: pre-existing .venv from earlier
-# layer skips already-installed deps.
 poetry install --no-interaction --no-ansi
 RLOCK
 SH

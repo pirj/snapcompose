@@ -31,29 +31,18 @@ snapshot_build() {
         return 0
     fi
 
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime.
     aq exec "$vm" sh <<SH
 set -eu
-# Tooling for native modules (node-gyp). No-op if already installed.
 apk add build-base python3
 
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"], so a
-# missing mise here is an upstream regression, not a runtime fallback
-# case. Fail loudly instead of silently using system Node (which would
-# install against the wrong Node version).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
-# Node must come from the mise-managed install. If npm isn't on PATH,
-# the project's .nvmrc / mise.toml didn't declare nodejs. Fail loudly
-# so the user sees the actual cause rather than a phantom system-npm
-# success.
 command -v npm >/dev/null 2>&1
 
-# npm install respects package-lock.json (since npm 7) — fetches what's
-# missing, leaves what's already there. Exactly what we want under
-# incremental strategy.
 npm install --prefer-offline --no-audit --no-fund
 RLOCK
 SH

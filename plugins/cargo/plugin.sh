@@ -28,24 +28,16 @@ snapshot_build() {
 
     # F2 auto-push delivered Cargo.lock + Cargo.toml + rust-toolchain.* to
     # $vm_project_dir before this snapshot_build runs. No scp needed.
+    # Triple-escape for nested unquoted heredocs — see ruby-runtime.
     aq exec "$vm" sh <<SH
 set -eu
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
-# loudly rather than silently using system Rust (wrong toolchain).
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
-# Project must declare rust in mise.toml / rust-toolchain.toml.
-# Falling back to apk's rust cargo would bind to whatever Alpine
-# ships — wrong toolchain, hard-to-debug.
 command -v cargo >/dev/null 2>&1
 
-# cargo fetch downloads all dependencies declared in Cargo.lock into
-# ~/.cargo/registry. It does NOT compile — that's deliberate: compile
-# artifacts depend on profile (debug/release) and features and are
-# expensive to share. Compile happens at snapc run time on top of this.
 cargo fetch --locked
 RLOCK
 SH
