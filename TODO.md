@@ -470,6 +470,36 @@ TOML.
       `.ruby-version` activates mise → warn → builds an empty
       snapshot layer → cached normally.
 
+### 2a. `snapc run` honours `SNAPC_VM_PROJECT_DIR` for user commands
+
+**Today.** `snapc-run`'s SSH command is hardcoded:
+
+```bash
+do_ssh "$vm_name" "cd repo 2>/dev/null && ...; bash -lc 'cd ~/repo && $*'"
+```
+
+— it always lands the user's command at `/home/rlock/repo`, the
+monorepo root. For subdirectory snapcompose projects (F1 already
+exports `SNAPC_VM_PROJECT_DIR=/home/rlock/repo/services/<svc>` for
+plugins), the user command runs in the wrong dir — `docker compose
+ps` errors with "no configuration file provided" because the
+compose file is in the subdir. Workaround in benchmark workflow:
+`snapc run -- 'cd services/main && docker compose …'` — but every
+adopter would hit this.
+
+**Fix.** snapc-run honours `SNAPC_VM_PROJECT_DIR` for the user
+command too:
+
+```bash
+do_ssh "$vm_name" "bash -lc 'cd ${SNAPC_VM_PROJECT_DIR:-~/repo} && $*'"
+```
+
+- [ ] Patch snapc-run.sh.
+- [ ] Bats: subdir fixture (`services/main/snapcompose.toml` +
+      compose), `snapc run -- 'pwd; ls'` from
+      `<repo>/services/main` returns `/home/rlock/repo/services/main`
+      and lists docker-compose.yml.
+
 ### 2. Drop redundant scp from mise / ruby-bundler / npm / uv / poetry / pnpm / cargo
 
 Same cleanup as F3 (docker-compose). All these plugins predate
