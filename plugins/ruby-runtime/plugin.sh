@@ -38,17 +38,23 @@ snapshot_build() {
     local vm="$1"
     local vm_project_dir="${SNAPC_VM_PROJECT_DIR:-/home/rlock/repo}"
 
+    # Nested unquoted heredocs (<<SH ... <<RLOCK) each consume one
+    # level of escaping. Use triple-backslash to land a literal `$f`
+    # inside the inner `bash -l -s` script:
+    #   src  \\\$f  → outer SH expand → \$f → inner RLOCK expand → $f
+    # Single-escape `\$(...)` would survive outer but get re-evaluated
+    # by the inner heredoc and crash with "parameter not set".
     aq exec "$vm" sh <<SH
 set -eu
 su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-eval "\$(mise activate bash)"
+eval "\\\$(mise activate bash)"
 cd "$vm_project_dir"
 
 # Trust whichever config files the project ships before installing.
 for f in mise.toml .tool-versions .ruby-version; do
-    [ -f "\$f" ] || continue
-    mise trust "\$f" 2>/dev/null || true
+    [ -f "\\\$f" ] || continue
+    mise trust "\\\$f" 2>/dev/null || true
 done
 
 # mise install ruby reads the resolved version from the trusted files
