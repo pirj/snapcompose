@@ -24,49 +24,43 @@ snapshot_key() {
     } | sha256sum | cut -d' ' -f1
 }
 
-# Install mise inside the VM, copy the project's tool-version files into a
-# known location, trust them, and resolve every tool. mise builds runtimes
-# from source on Alpine for most languages, so this step can be slow on
-# first run — that's the whole point of caching it.
+# Install mise inside the VM, trust the project's tool-version files, and
+# resolve every declared tool. The tool-version files arrive at
+# $SNAPC_VM_PROJECT_DIR via the framework's auto-push (F2); no separate scp
+# loop needed.
+#
+# mise builds runtimes from source on Alpine for most languages, so this
+# step can be slow on first run — that's the whole point of caching it.
 snapshot_build() {
     local vm="$1"
+    local vm_project_dir="${SNAPC_VM_PROJECT_DIR:-/home/rlock/repo}"
 
-    # Push the tool-version files to the guest so `mise install` can read
-    # them. Only the ones that exist on the host get copied.
-    local files=()
-    [ -f mise.toml      ] && files+=(mise.toml)
-    [ -f .tool-versions ] && files+=(.tool-versions)
-    [ -f .ruby-version  ] && files+=(.ruby-version)
-    [ -f .nvmrc         ] && files+=(.nvmrc)
-
-    if [ "${#files[@]}" -eq 0 ]; then
-        info "mise: no tool-version files present, nothing to install"
-        return 0
-    fi
-
-    aq scp "${files[@]}" "$vm:/home/rlock/"
-
-    aq exec "$vm" sh <<'SH'
+    aq exec "$vm" sh <<SH
 set -eu
-# `mise` is in Alpine community since 3.20. Bundled with build deps that
+# \`mise\` is in Alpine community since 3.20. Bundled with build deps that
 # many language runtimes need when mise compiles from source.
 apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev
 
-# Activate per-user, trust the project files, install everything.
-su -l rlock -c 'bash -l -s' <<'RLOCK'
+# Activate per-user, trust the project files at the canonical project dir
+# (auto-push delivered them), install everything.
+su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-grep -q "mise activate" ~/.profile 2>/dev/null \
-    || echo 'eval "$(mise activate bash)"' >> ~/.profile
+grep -q "mise activate" ~/.profile 2>/dev/null \\
+    || echo 'eval "\$(mise activate bash)"' >> ~/.profile
 
-eval "$(mise activate bash)"
+eval "\$(mise activate bash)"
 
-# Trust any project file that landed in $HOME (one per declared trigger).
+cd "$vm_project_dir"
+
+# Trust whichever tool-version files the project ships. mise looks for
+# these at the working directory; with no .git in this dir the trust step
+# is also where mise hashes the file for ToFU.
 for f in mise.toml .tool-versions .ruby-version .nvmrc; do
-    [ -f ~/"$f" ] || continue
-    mise trust ~/"$f" 2>/dev/null || true
+    [ -f "\$f" ] || continue
+    mise trust "\$f" 2>/dev/null || true
 done
 
-# `mise install` (no args) reads all configured files and installs every
+# \`mise install\` (no args) reads all configured files and installs every
 # declared tool version. With multiple files it does the right thing.
 mise install
 RLOCK

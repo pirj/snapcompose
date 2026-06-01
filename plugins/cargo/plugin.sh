@@ -19,45 +19,33 @@ snapshot_key() {
 
 snapshot_build() {
     local vm="$1"
+    local vm_project_dir="${SNAPC_VM_PROJECT_DIR:-/home/rlock/repo}"
 
     if [ ! -f Cargo.lock ]; then
         info "cargo: no Cargo.lock in project root, nothing to fetch"
         return 0
     fi
 
-    aq exec "$vm" sh <<'SH'
+    # F2 auto-push delivered Cargo.lock + Cargo.toml + rust-toolchain.* to
+    # $vm_project_dir before this snapshot_build runs. No scp needed.
+    aq exec "$vm" sh <<SH
 set -eu
-mkdir -p /home/rlock/repo
-chown rlock:rlock /home/rlock/repo
-SH
-
-    local files=(Cargo.lock Cargo.toml)
-    [ -f rust-toolchain      ] && files+=(rust-toolchain)
-    [ -f rust-toolchain.toml ] && files+=(rust-toolchain.toml)
-    local f
-    for f in "${files[@]}"; do
-        [ -f "$f" ] && aq scp "$f" "$vm:/home/rlock/repo/$f"
-    done
-
-    aq exec "$vm" sh <<'SH'
+su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-chown -R rlock:rlock /home/rlock/repo
-su -l rlock -c 'bash -l -s' <<'RLOCK'
-set -eu
-# mise must be on PATH — this plugin declares `deps = ["mise"]`. Fail
+# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
 # loudly rather than silently using system Rust (wrong toolchain).
-eval "$(mise activate bash)"
-cd ~/repo
+eval "\$(mise activate bash)"
+cd "$vm_project_dir"
 
-# Project must declare `rust` in mise.toml / rust-toolchain.toml.
-# Falling back to apk's `rust cargo` would bind to whatever Alpine
+# Project must declare rust in mise.toml / rust-toolchain.toml.
+# Falling back to apk's rust cargo would bind to whatever Alpine
 # ships — wrong toolchain, hard-to-debug.
 command -v cargo >/dev/null 2>&1
 
-# `cargo fetch` downloads all dependencies declared in Cargo.lock into
+# cargo fetch downloads all dependencies declared in Cargo.lock into
 # ~/.cargo/registry. It does NOT compile — that's deliberate: compile
 # artifacts depend on profile (debug/release) and features and are
-# expensive to share. Compile happens at `snapc run` time on top of this.
+# expensive to share. Compile happens at snapc run time on top of this.
 cargo fetch --locked
 RLOCK
 SH

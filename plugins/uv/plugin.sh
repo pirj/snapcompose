@@ -18,43 +18,30 @@ snapshot_key() {
 
 snapshot_build() {
     local vm="$1"
+    local vm_project_dir="${SNAPC_VM_PROJECT_DIR:-/home/rlock/repo}"
 
     if [ ! -f uv.lock ]; then
         info "uv: no uv.lock in project root, nothing to install"
         return 0
     fi
 
-    aq exec "$vm" sh <<'SH'
+    # F2 auto-push delivered uv.lock + pyproject.toml + .python-version
+    # to $vm_project_dir before this snapshot_build runs. No scp needed.
+    aq exec "$vm" sh <<SH
 set -eu
-mkdir -p /home/rlock/repo
-chown rlock:rlock /home/rlock/repo
-SH
-
-    local files=(uv.lock pyproject.toml)
-    [ -f .python-version  ] && files+=(.python-version)
-    [ -f .python-versions ] && files+=(.python-versions)
-    [ -f uv.toml          ] && files+=(uv.toml)
-    local f
-    for f in "${files[@]}"; do
-        [ -f "$f" ] && aq scp "$f" "$vm:/home/rlock/repo/$f"
-    done
-
-    aq exec "$vm" sh <<'SH'
+su -l rlock -c "bash -l -s" <<RLOCK
 set -eu
-chown -R rlock:rlock /home/rlock/repo
-su -l rlock -c 'bash -l -s' <<'RLOCK'
-set -eu
-# mise must be on PATH — this plugin declares `deps = ["mise"]`. Fail
+# mise must be on PATH — this plugin declares deps = ["mise"]. Fail
 # loudly rather than silently using a system Python (wrong version).
-eval "$(mise activate bash)"
-cd ~/repo
+eval "\$(mise activate bash)"
+cd "$vm_project_dir"
 
-# Project must declare `uv` in mise.toml / .tool-versions. Falling back
-# to `apk add uv` would install against the system Python instead of
+# Project must declare uv in mise.toml / .tool-versions. Falling back
+# to apk add uv would install against the system Python instead of
 # the mise-managed one. Fail loudly so the cause is visible.
 command -v uv >/dev/null 2>&1
 
-# `uv sync` reads pyproject.toml + uv.lock and resolves the project's
+# uv sync reads pyproject.toml + uv.lock and resolves the project's
 # .venv. Incremental by nature: skips packages already linked into .venv
 # and skips downloads already in the global cache.
 uv sync --frozen
