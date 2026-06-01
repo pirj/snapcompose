@@ -195,10 +195,13 @@ fi
 # Exec the user command. SSH error code propagates.
 info "Running in VM: $*"
 _profile_mark "before do_ssh"
-# do_ssh handles 'aq start' if the VM is stopped. We cd into the guest's
-# repo dir; the git plugin clones there. `bash -lc` to load mise + PATH.
+# do_ssh handles 'aq start' if the VM is stopped. We cd into the project
+# dir inside the VM — that's SNAPC_VM_PROJECT_DIR (F1 monorepo-aware:
+# /home/rlock/repo/<subdir> for subdir projects, /home/rlock/repo for
+# repo-root projects). `bash -lc` to load mise + PATH.
 set +e
-do_ssh "$vm_name" "cd repo 2>/dev/null && git checkout _snapc_run >/dev/null 2>&1 || true; bash -lc 'cd ~/repo && $*'"
+_vm_cwd="${SNAPC_VM_PROJECT_DIR:-/home/rlock/repo}"
+do_ssh "$vm_name" "cd repo 2>/dev/null && git checkout _snapc_run >/dev/null 2>&1 || true; bash -lc 'cd ${_vm_cwd} && $*'"
 rc=$?
 set -e
 
