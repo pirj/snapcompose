@@ -63,7 +63,8 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 
 |  | cold | warm | warm-from-patch |
 |---|---|---|---|
-| monolith (pg+redis, Phase 1 walking skeleton) | **143.17 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26755435790)) | — | — |
+| **monolith — Rails app + pg + redis** (Phase 2) | **828.34 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26765152927)) | **12.84 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26766024326)) — **64×** | — |
+| monolith — pg + redis only (Phase 1) | 143.17 s | 7.93 s — 18× | — |
 | +1 microservice | — | — | — |
 | +3 microservices | — | — | — |
 | +5 microservices | — | — | — |
@@ -77,7 +78,11 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 | +3 microservices | — | — | — |
 | +5 microservices | — | — | — |
 
-Cells marked `—` are pending. Phase 1 walking-skeleton uses a `pg + redis` fixture matching the dominant Rails CI pattern (see [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)). Phases 2–6 add Rails-app native run, warm + warm-from-patch, par/seq, and the five microservices.
+Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runtime + ruby-bundler` plugins, plus `docker-compose` for pg + redis service containers. The 828 s cold pays full compile-Ruby-from-source + bundle install + container start; the 12.8 s warm restores the entire live state — pg's shared buffers, Redis's working set, the Ruby/bundler trees, and the running containers — from a layered qcow2 snapshot.
+
+Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pattern (77 % of OSS Rails projects per [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)).
+
+Cells marked `—` are pending — Phases 3–6 add warm-from-patch, parallel/sequential, the five microservices, and the docker baseline.
 
 ## Tests
 
