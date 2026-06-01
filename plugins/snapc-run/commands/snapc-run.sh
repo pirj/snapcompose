@@ -134,18 +134,36 @@ fi
 # argument order).
 if [[ ! -d "$AQ_STATE_DIR/$vm_name" ]]; then
     info "No VM for this project yet — provisioning..."
-    local_available=()
-    _profile_mark "before discover_plugins"
-    mapfile -t local_available < <(discover_plugins)
-    _profile_mark "after discover_plugins"
-    local_triggered=()
-    mapfile -t local_triggered < <(detect_triggers "$(pwd)" "${local_available[@]}")
-    _profile_mark "after detect_triggers"
+
+    # Refactor wave step 1 — explicit activation via `plugins = [...]`
+    # in snapcompose.toml. If the array is present, that's the canonical
+    # activation source; auto-detection by triggers is skipped. If
+    # absent, we fall back to the trigger-based path (back-compat).
+    explicit_plugins=()
+    if [[ -f "$(pwd)/snapcompose.toml" ]]; then
+        mapfile -t explicit_plugins < <(toml_get_array "$(pwd)/snapcompose.toml" "plugins")
+    fi
+
+    if [[ ${#explicit_plugins[@]} -gt 0 ]]; then
+        info "Activating ${#explicit_plugins[@]} plugin(s) from snapcompose.toml: ${explicit_plugins[*]}"
+        local_triggered=("${explicit_plugins[@]}")
+    else
+        local_available=()
+        _profile_mark "before discover_plugins"
+        mapfile -t local_available < <(discover_plugins)
+        _profile_mark "after discover_plugins"
+        local_triggered=()
+        mapfile -t local_triggered < <(detect_triggers "$(pwd)" "${local_available[@]}")
+        _profile_mark "after detect_triggers"
+    fi
+
     # F1+F2 — when the snapcompose project is a subdir of a git repo,
     # `.git` lives at the repo root, not in pwd, so the git plugin's
     # `.git` trigger doesn't fire in detect_triggers. Force-add it so
     # the framework's auto-push to `rl-<vm>` is wired up (without git
     # plugin in chain, cmd_new skips the source-sync hook entirely).
+    # This also applies to the explicit-list path: users shouldn't have
+    # to remember to put "git" in their plugins list.
     if [ -n "$SNAPC_GIT_ROOT" ]; then
         # NB: this block runs at script scope, not inside a function —
         # bash refuses `local` here. Plain assignments.
