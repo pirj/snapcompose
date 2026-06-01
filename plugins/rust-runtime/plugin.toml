@@ -1,0 +1,10 @@
+description = "Install Rust via mise (version from rust-toolchain.toml, rust-toolchain, mise.toml)"
+protocol_version = "1"
+deps = ["mise-base"]
+host_deps = []
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"

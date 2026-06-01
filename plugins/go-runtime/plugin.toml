@@ -1,0 +1,10 @@
+description = "Install Go via mise (version from .go-version, mise.toml, or go.mod toolchain)"
+protocol_version = "1"
+deps = ["mise-base"]
+host_deps = []
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"

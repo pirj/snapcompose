@@ -1,0 +1,10 @@
+description = "Install Node.js via mise (version from .nvmrc, .node-version, mise.toml, or package.json engines)"
+protocol_version = "1"
+deps = ["mise-base"]
+host_deps = []
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"

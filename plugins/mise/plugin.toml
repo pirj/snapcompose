@@ -1,7 +1,12 @@
-description = "Install language runtimes declared in mise.toml / .tool-versions / .ruby-version / .nvmrc"
+description = "DEPRECATED — use ruby-runtime / python-runtime / nodejs-runtime / go-runtime / rust-runtime. Will be removed in v0.4."
 protocol_version = "1"
-deps = []
+deprecated = "true"
+deps = ["mise-base"]
 host_deps = []
+# Auto-triggers retained for back-compat — old snapcompose.toml files that
+# rely on .ruby-version triggering mise continue to work. New projects
+# should declare specific per-language runtimes in plugins = [...]
+# instead so polyglot invalidation isolates per language.
 triggers = ["mise.toml", ".tool-versions", ".ruby-version", ".nvmrc"]
 commands = []
 

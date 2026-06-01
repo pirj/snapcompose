@@ -1,0 +1,13 @@
+description = "Install the mise tool-version manager binary"
+protocol_version = "1"
+deps = []
+host_deps = []
+# Explicit-activation only; no trigger files. The per-language *-runtime
+# plugins depend on this one and pull it in. End users typically declare
+# a runtime (e.g. ruby-runtime) rather than mise-base directly.
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"

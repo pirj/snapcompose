@@ -1,0 +1,13 @@
+description = "Install Ruby via mise (version from .ruby-version, mise.toml, or Gemfile)"
+protocol_version = "1"
+deps = ["mise-base"]
+host_deps = []
+# Explicit-activation: declare in snapcompose.toml plugins = [...] or pull
+# in via ruby-bundler's dep on us. Trigger-list is intentionally empty so
+# this plugin only activates when meant to.
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"

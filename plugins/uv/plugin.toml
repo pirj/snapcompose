@@ -1,6 +1,6 @@
 description = "Install Python packages declared in uv.lock via uv sync"
 protocol_version = "1"
-deps = ["mise"]
+deps = ["python-runtime"]
 host_deps = []
 triggers = ["uv.lock"]
 commands = []

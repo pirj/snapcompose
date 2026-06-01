@@ -1,0 +1,10 @@
+description = "Install Python via mise (version from .python-version, mise.toml, or pyproject.toml)"
+protocol_version = "1"
+deps = ["mise-base"]
+host_deps = []
+triggers = []
+commands = []
+
+[snapshot]
+strategy = "cached"
+kind = "cold"
