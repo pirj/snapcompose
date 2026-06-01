@@ -53,6 +53,32 @@ snapcompose is one of several plugin packs that consume the rlock framework. Arc
 - [`rlock/docs/superpowers/specs/2026-05-18-snapshot-kind-design.md`](https://github.com/pirj/rlock/blob/main/docs/superpowers/specs/2026-05-18-snapshot-kind-design.md) — cold-vs-live snapshot tradeoff.
 - [`rlock/docs/superpowers/plans/2026-05-11-repo-split-migration.md`](https://github.com/pirj/rlock/blob/main/docs/superpowers/plans/2026-05-11-repo-split-migration.md) — why we have three repos.
 
+## Benchmark
+
+Cold provisioning timings from the [`snapcompose-benchmark`](https://github.com/pirj/snapcompose-benchmark) fixture, run on a GitHub Actions `ubuntu-latest` runner. Triggered manually before each performance-related release.
+
+Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/2026-05-29-microservices-benchmark.md). Workflow: [`bench-snapcompose.yml`](https://github.com/pirj/snapcompose-benchmark/blob/main/.github/workflows/bench-snapcompose.yml).
+
+### snapcompose
+
+|  | cold | warm | warm-from-patch |
+|---|---|---|---|
+| monolith (pg+redis, Phase 1 walking skeleton) | **143.17 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26755435790)) | — | — |
+| +1 microservice | — | — | — |
+| +3 microservices | — | — | — |
+| +5 microservices | — | — | — |
+
+### docker (baseline)
+
+|  | cold | warm | warm-from-patch |
+|---|---|---|---|
+| monolith | — | — | — |
+| +1 microservice | — | — | — |
+| +3 microservices | — | — | — |
+| +5 microservices | — | — | — |
+
+Cells marked `—` are pending. Phase 1 walking-skeleton uses a `pg + redis` fixture matching the dominant Rails CI pattern (see [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)). Phases 2–6 add Rails-app native run, warm + warm-from-patch, par/seq, and the five microservices.
+
 ## Tests
 
 ```sh
