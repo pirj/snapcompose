@@ -95,7 +95,8 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 | monolith — pg + redis only | 7.32 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26805166059)) | 2.84 s | — |
 | +1 microservice — par | 6.79 s | 3.10 s | — |
 | +1 microservice — seq | 9.67 s | 5.85 s | — |
-| +3 microservices | — | — | — |
+| +3 microservices — par | 9.64 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26808652927)) | 5.71 s | — |
+| +3 microservices — seq | 16.38 s | 11.52 s | — |
 | +5 microservices | — | — | — |
 
 Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runtime + ruby-bundler` plugins, plus `docker-compose` for pg + redis service containers. The 828 s cold pays full compile-Ruby-from-source + bundle install + container start; the 12.8 s warm restores the entire live state — pg's shared buffers, Redis's working set, the Ruby/bundler trees, and the running containers — from a layered qcow2 snapshot.
