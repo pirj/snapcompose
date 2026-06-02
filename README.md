@@ -104,7 +104,7 @@ Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pat
 
 Phase 6 docker baseline: same `docker compose up -d --wait` against the per-service compose stacks, with `docker save | zstd | actions/cache | zstd -d | docker load` round-tripping the image set between cold and warm. Measures infra-only (pg + redis); Phase 7 will extend the docker baseline to also build + run the Rails / Node app images so the comparison covers full CI workload, not just service-container provisioning.
 
-Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7). Phase 3's `+1 par cold` traced a real concurrency race in aq's base-image bootstrap path (two `aq new` invocations on an empty cache both try to bootstrap; see [`aq/ROADMAP.md`](https://github.com/pirj/aq/blob/main/ROADMAP.md) §Concurrency); until the flock fix ships, that cell reports `✗ aq-race` per the methodology's cap-trip convention.
+Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7). Phase 3's first benchmark run surfaced two **separate** aq-side issues on the multi-VM cold path (`+1 par cold` → concurrent base-bootstrap race; `+1 seq cold` → incoming-migration poll timeout on 1.25 GiB staged memory). Both are tracked in [`aq/ROADMAP.md`](https://github.com/pirj/aq/blob/main/ROADMAP.md) §Concurrency and reported as cap-trips per the methodology. Monolith cold and all warm cells are unaffected — the trips are specific to multi-VM cold chain walking.
 
 ## Tests
 

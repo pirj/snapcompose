@@ -164,9 +164,16 @@ matrix:
 
 `variant: na` is the single cell for the monolith row (no par/seq distinction at row size 1). `par` and `seq` are sibling jobs whose cache keys are segregated (`${CACHE_KEY_BASE}-${row}-${variant}`) so the par cache doesn't pollute seq or vice versa. Each variant runs in its own GH Actions runner, so par-vs-seq comparisons are not biased by warm host state.
 
-### Known cap-trip — `+1 par cold` on snapcompose
+### Known cap-trips on snapcompose `+1 cold` (Phase 3 walking-skeleton)
 
-Phase 3's first run (https://github.com/pirj/snapcompose-benchmark/actions/runs/26804727138) surfaced a concurrent base-image bootstrap race in aq: two simultaneous `snapc run` invocations on an empty cache both attempt `bootstrap_base_image`, collide on the Alpine ISO download, and the boot path exits 2 mid-GRUB. Filed in [aq ROADMAP §Concurrency](https://github.com/pirj/aq/blob/main/ROADMAP.md). Until the flock fix ships, `+1 par cold` cells on the snapcompose side are reported as `✗ aq-race` per the cap-trip convention. `+1 par warm` is unaffected (base already cached on the warm path); the +1 seq variants and the docker baseline are unaffected.
+Phase 3's first run (https://github.com/pirj/snapcompose-benchmark/actions/runs/26804727138) surfaced two **separate** aq-side issues on the multi-VM cold path. Both are filed in [aq ROADMAP §Concurrency](https://github.com/pirj/aq/blob/main/ROADMAP.md); until they ship the corresponding cells are reported as cap-trips per the methodology's `✗ <cap>` convention. Monolith cold completes cleanly on the same runner — the trip is specific to multi-VM cold chain walking.
+
+| Cell | Cap | Root cause | Cross-check |
+|---|---|---|---|
+| `+1 par cold` | `✗ aq-race` | Two concurrent `aq new` invocations both attempt `bootstrap_base_image` on an empty cache, collide on the Alpine ISO download, boot exits 2 mid-GRUB. | Fix: flock around `bootstrap_base_image`. |
+| `+1 seq cold` | `✗ aq-incoming-timeout` | After VM #1 walks its chain, VM #2 stages 1.25 GiB concatenated `memory.bin.zst` for `-incoming exec:zstd -dc`. QEMU's 60 s migration-completion poll fires before the consumer finishes. | Fix: poll budget proportional to staged memory, or QMP `MIGRATION` event wait. |
+
+Warm cells are unaffected: cache hits don't replay the base-image bootstrap (par) and don't rebuild the chain (seq), so the live-restore path used in warm avoids both code paths.
 
 ## Methodology
 
