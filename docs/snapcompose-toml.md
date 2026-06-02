@@ -28,6 +28,53 @@ customise.
 
 ## Sections
 
+### `plugins = [...]`
+
+```toml
+plugins = ["docker-engine", "docker-compose", "ruby"]
+```
+
+Top-level array (not a section header) that names the snapshot
+chain explicitly. When present, `snapc run` activates exactly the
+listed plugins in declaration order; trigger detection (the path
+that scans the project for `.ruby-version` / `Gemfile.lock` /
+`docker-compose.yml` / etc. and infers a chain) is bypassed.
+
+When absent, snapcompose falls back to the trigger-based path for
+backwards compatibility. New projects should declare `plugins =
+[...]` explicitly — it removes the magic-by-filename surprise
+when files coexist that resolve ambiguously (e.g. a project
+shipping both `Gemfile.lock` and `package-lock.json` activates
+both ruby-bundler and npm under the trigger path, which is
+usually right but occasionally not).
+
+#### Language shortcuts
+
+A small set of one-word entries expand to a canonical chain. Only
+unambiguous ecosystems get a shortcut — Node has `npm` / `pnpm` /
+`yarn`, Python has `uv` / `poetry` / `pip`, so they stay
+explicit. Ruby has one playbook (mise + bundler), so it gets a
+shortcut.
+
+| Shortcut | Expands to |
+|---|---|
+| `ruby` | `["mise-base", "ruby-runtime", "ruby-bundler"]` |
+
+Use shortcuts inline:
+
+```toml
+plugins = ["docker-engine", "docker-compose", "ruby"]
+```
+
+…which is equivalent to:
+
+```toml
+plugins = ["docker-engine", "docker-compose", "mise-base", "ruby-runtime", "ruby-bundler"]
+```
+
+Additional language shortcuts will land when a clear single-
+playbook winner emerges in their ecosystems.
+
 ### `[memory]`
 
 ```toml

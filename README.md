@@ -8,16 +8,35 @@ Aimed at CI/PR workloads where:
 
 ## Plugins shipped
 
+**Infrastructure**
+
 - **`docker-engine`** — Installs Docker inside the Alpine guest. Single shared snapshot, reused across every project that activates Docker.
-- **`docker-compose`** — Runs `docker compose up` against the project's compose file, waits for healthchecks, snapshots the warm state. Subsequent VMs from this snapshot have postgres / redis / app containers already running.
+- **`docker-compose`** — Runs `docker compose up` against the project's compose file, waits for healthchecks, snapshots the warm state. Subsequent VMs from this snapshot have postgres / redis / app containers already running. Optional [`[docker-compose] file = "..."`](docs/snapcompose-toml.md#docker-compose) override and [`services = [...]`](docs/snapcompose-toml.md#services--) filter for projects that ship multiple compose files or want CI to bring up an infra-only subset.
+- **`docker-registry-cache`** — Optional host-side registry mirror. Avoids docker.io rate limits and speeds up cold pulls.
 
-Planned (see `docs/superpowers/plans/`):
+**Runtimes** (one cache key per language — flipping a Python pin doesn't invalidate the Ruby layer)
 
-- `mise`, `nvm` — language runtime managers
-- `ruby-bundler`, `npm`, `uv`, `pnpm`, `poetry` — dependency installers
-- `rails-db-migrations`, `rails-db-seeds`, `rails-load-db-schema` — Rails lifecycle
-- `snapc run` — one-shot CI job runner
-- `snapc pr` — PR-from-untrusted-fork sandbox runner
+- **`mise-base`** — Installs mise itself plus the build toolchain it needs to compile language runtimes from source.
+- **`ruby-runtime`**, **`python-runtime`**, **`nodejs-runtime`**, **`go-runtime`**, **`rust-runtime`** — Per-language runtime installers driven by mise. Each reads its language's pin file (`.ruby-version`, `.python-version`, `.node-version`, …) so the cache key is exactly the runtime version it produced.
+
+**Dependencies**
+
+- **`ruby-bundler`** — `bundle install` against `Gemfile.lock`.
+- **`npm`** — `npm ci` against `package-lock.json`.
+- **`pnpm`** — `pnpm install --frozen-lockfile` against `pnpm-lock.yaml`.
+- **`poetry`** — `poetry install` against `poetry.lock`.
+- **`uv`** — `uv sync --frozen` against `uv.lock`.
+- **`cargo`** — `cargo build` against `Cargo.lock`.
+
+**Commands**
+
+- **`snapc run -- <cmd>`** — Provision the VM (walking the chain) and execute the command. The CI workhorse.
+- **`snapc pr <pr-url>`** — Sandbox an untrusted-fork PR (in progress).
+- **`snapc cache`** — Cache management: `--gc`, `--push <oci-ref>`, `--pull <oci-ref>`.
+
+**Deprecated**
+
+- **`mise`** — The monolithic mise plugin is deprecated in favour of `mise-base` + per-language runtimes (one cache key per language vs. one shared key). Will be removed in v0.4. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
