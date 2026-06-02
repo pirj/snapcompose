@@ -67,6 +67,66 @@ move less data.
 
 Format: `<N>` or `<N>G` (the G suffix is tolerated either way).
 
+### `[docker-compose]`
+
+```toml
+[docker-compose]
+file = "docker-compose.ci.yml"
+```
+
+Tells the `docker-compose` plugin which compose file to bring up.
+Defaults to `docker-compose.yml` (then `docker-compose.yaml`) at
+the project root, matching `docker compose`'s own discovery
+precedence. Set `file` when:
+
+- Your repo ships multiple compose files (`docker-compose.yml`
+  for dev, `docker-compose.ci.yml` for CI), and snapcompose should
+  use the CI one. This is the dominant OSS-Rails pattern — the
+  dev compose typically `build:`s the app from a Dockerfile,
+  but CI runs the app natively (via `mise + bundler`) and only
+  needs the infra services.
+- Your CI compose file lives in a non-standard location (e.g.
+  `infra/docker-compose.test.yml`). Relative paths are resolved
+  against the project root.
+
+The override participates in `snapshot_key` — distinct `file`
+values produce distinct cache slots, so a project that flips
+between `docker-compose.yml` and `docker-compose.ci.yml`
+across runs won't accidentally reuse a stale chain.
+
+Trigger detection (used when `plugins = [...]` is absent) still
+matches the canonical filenames only. If your project has *only*
+a non-canonical compose file, declare `docker-compose` explicitly
+in `plugins = [..., "docker-compose", ...]`.
+
+#### `services = [...]`
+
+```toml
+[docker-compose]
+services = ["db", "redis"]
+```
+
+Restricts `docker compose up -d` to just the named services (and
+their `depends_on` chains). When unset, the whole compose stack
+comes up. Pairs naturally with `file =` for the OSS-Rails pattern
+where the canonical `docker-compose.yml` ships an `app:` service
+with `build:` (used in dev) but CI only needs the infra:
+
+```toml
+[docker-compose]
+file = "docker-compose.yml"      # the dev file ships infra + app
+services = ["db", "redis"]        # CI snapshots infra only
+```
+
+Without `services = [...]`, snapcompose would `docker compose
+build` and bring up `app` too — bloating the snapshot with a
+Rails image rebuild that CI doesn't actually run (Rails comes
+up natively via `mise + bundler`).
+
+The filter participates in `snapshot_key`, so flipping the list
+between runs produces distinct cache slots and the warm restore
+matches what the chain actually built.
+
 ### `[prebuild.<name>]`
 
 Declares an additional snapshot layer that runs after all activated
