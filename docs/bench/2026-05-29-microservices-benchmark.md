@@ -164,16 +164,22 @@ matrix:
 
 `variant: na` is the single cell for the monolith row (no par/seq distinction at row size 1). `par` and `seq` are sibling jobs whose cache keys are segregated (`${CACHE_KEY_BASE}-${row}-${variant}`) so the par cache doesn't pollute seq or vice versa. Each variant runs in its own GH Actions runner, so par-vs-seq comparisons are not biased by warm host state.
 
-### Known cap-trips on snapcompose `+1 cold` (Phase 3 walking-skeleton)
+### Phase 3 multi-VM cold path — surfaced + fixed cap-trips
 
-Phase 3's first run (https://github.com/pirj/snapcompose-benchmark/actions/runs/26804727138) surfaced two **separate** aq-side issues on the multi-VM cold path. Both are filed in [aq ROADMAP §Concurrency](https://github.com/pirj/aq/blob/main/ROADMAP.md); until they ship the corresponding cells are reported as cap-trips per the methodology's `✗ <cap>` convention. Monolith cold completes cleanly on the same runner — the trip is specific to multi-VM cold chain walking.
+Phase 3's first run (https://github.com/pirj/snapcompose-benchmark/actions/runs/26804727138) surfaced two **separate** aq-side issues on the multi-VM cold path. Both were filed in [aq ROADMAP §Concurrency](https://github.com/pirj/aq/blob/main/ROADMAP.md) and fixed in the same session.
 
-| Cell | Cap | Root cause | Cross-check |
+| Cell | Cap | Root cause | Fix |
 |---|---|---|---|
-| `+1 par cold` | `✗ aq-race` | Two concurrent `aq new` invocations both attempt `bootstrap_base_image` on an empty cache, collide on the Alpine ISO download, boot exits 2 mid-GRUB. | Fix: flock around `bootstrap_base_image`. |
-| `+1 seq cold` | `✗ aq-incoming-timeout` | After VM #1 walks its chain, VM #2 stages 1.25 GiB concatenated `memory.bin.zst` for `-incoming exec:zstd -dc`. QEMU's 60 s migration-completion poll fires before the consumer finishes. | Fix: poll budget proportional to staged memory, or QMP `MIGRATION` event wait. |
+| `+1 par cold` | `✗ aq-race` | Two concurrent `aq new` invocations both attempt `bootstrap_base_image` on an empty cache, collide on the Alpine ISO download, boot exits 2 mid-GRUB. | [aq v2.5.45](https://github.com/pirj/aq/blob/main/CHANGELOG.md) — flock around `bootstrap_base_image`; [v2.5.47](https://github.com/pirj/aq/blob/main/CHANGELOG.md) — `9>>` (append) open mode, noclobber-safe. |
+| `+1 seq cold` | `✗ aq-incoming-timeout` | After VM #1 walks its chain, VM #2 stages 1.25 GiB concatenated `memory.bin.zst` for `-incoming exec:zstd -dc`. QEMU's 60 s migration-completion poll fires before the consumer finishes. | [aq v2.5.46](https://github.com/pirj/aq/blob/main/CHANGELOG.md) — `qmp_wait_migrate_incoming` budget scales with staged incoming size (~150 polls/GiB + 300 baseline). |
 
-Warm cells are unaffected: cache hits don't replay the base-image bootstrap (par) and don't rebuild the chain (seq), so the live-restore path used in warm avoids both code paths.
+Cut into the fixture via [setup-snapcompose v3.1.3](https://github.com/pirj/setup-snapcompose/blob/main/CHANGELOG.md). Validation re-run in flight at fixture HEAD.
+
+### Phase 7 walking-skeleton scope (services 3 + 4)
+
+Services 3 (Python / FastAPI / `uv`) and 4 (Go / `net/http` / `mise-managed`) land in the fixture as `services/python/` and `services/go/`. Each ships its own `snapcompose.toml`, `docker-compose.yml` (own pg + redis), runtime-version pin file (`.python-version`, `.go-version`), lockfile (`uv.lock`, `go.sum`), and `/health` app code. The bench-snapcompose.yml and bench-docker.yml matrices both grow with `plus3 par` and `plus3 seq` cells (`services: main,node,python,go`).
+
+Services 5 (Sinatra) and 6 (Python-alt / `poetry`) — which exist to measure shared-layer wins (Ruby↔#1+#5, Python↔#3+#6) — are the **deferred extension**. The +5 row in both tables stays at `—` until those services land in a follow-up.
 
 ## Methodology
 

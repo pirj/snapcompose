@@ -104,7 +104,9 @@ Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pat
 
 Phase 6 docker baseline: same `docker compose up -d --wait` against the per-service compose stacks, with `docker save | zstd | actions/cache | zstd -d | docker load` round-tripping the image set between cold and warm. Measures infra-only (pg + redis); Phase 7 will extend the docker baseline to also build + run the Rails / Node app images so the comparison covers full CI workload, not just service-container provisioning.
 
-Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7). Phase 3's first benchmark run surfaced two **separate** aq-side issues on the multi-VM cold path (`+1 par cold` → concurrent base-bootstrap race; `+1 seq cold` → incoming-migration poll timeout on 1.25 GiB staged memory). Both are tracked in [`aq/ROADMAP.md`](https://github.com/pirj/aq/blob/main/ROADMAP.md) §Concurrency and reported as cap-trips per the methodology. Monolith cold and all warm cells are unaffected — the trips are specific to multi-VM cold chain walking.
+Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7).
+
+Phase 3's first benchmark run surfaced two aq-side issues on the multi-VM cold path: `+1 par cold` raced on concurrent base-image bootstrap; `+1 seq cold` overran the historic fixed 60 s incoming-migration poll budget against 1.25 GiB of staged chain memory. Both are fixed in [aq v2.5.45 + v2.5.46 + v2.5.47](https://github.com/pirj/aq/blob/main/CHANGELOG.md) (flock with noclobber-safe append open mode + size-scaled migrate budget) and cut into the bench fixture via [setup-snapcompose v3.1.3](https://github.com/pirj/setup-snapcompose/blob/main/CHANGELOG.md). Walking-skeleton fixtures for the +3 row (Python/FastAPI + Go/net-http) are in place; +5 row (Sinatra + Python-alt) is the deferred extension.
 
 ## Tests
 
