@@ -3,10 +3,13 @@ set -euo pipefail
 source "${RL_LIB_DIR}/ui.sh"
 
 # Snapshot key = constant per mise package version (we ride Alpine's
-# packaging of mise). Bump the suffix if we ever pin a specific mise
-# version explicitly.
+# packaging of mise). Bump the suffix when the apk-install set changes
+# so cached chain layers from older mise-base contents get rebuilt.
+# v2 adds python3 — required by Node's ./configure during mise's
+# from-source nodejs install (Alpine ships glibc-only binaries from
+# nodejs.org, so mise falls back to source build on musl).
 snapshot_key() {
-    printf 'mise-base-v1' | sha256sum | cut -d' ' -f1
+    printf 'mise-base-v2' | sha256sum | cut -d' ' -f1
 }
 
 # Install mise + the build deps that mise needs when it compiles language
@@ -19,7 +22,10 @@ snapshot_build() {
 set -eu
 # mise is in Alpine community since 3.20. Bundling build deps here keeps
 # the per-language runtime layers focused on `mise install <lang>`.
-apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev
+# python3: required by Node's ./configure (v8 build) when mise compiles
+# nodejs from source. nodejs.org's official binaries are glibc-only;
+# Alpine is musl, so mise must source-build node.
+apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev python3
 
 # Activate per-user so subsequent layers' bash -lc shells see mise on
 # PATH and have mise shims wired up.

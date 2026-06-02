@@ -30,6 +30,26 @@ Companion repos to bump in lockstep:
 
 ## Unreleased
 
+## v0.3.3 — 2026-06-02 — mise-base installs python3 (Node source-build fix)
+
+`mise install node` on Alpine compiles from source because the
+official nodejs.org binaries are glibc-only and Alpine is musl.
+The source build runs `./configure` which invokes `python` — not
+shipped in Alpine's `build-base` and not previously installed by
+`mise-base`. Surfaced by snapcompose-benchmark Phase 3 walking-
+skeleton on 2026-06-02 (run 26807611414 / `+1 par cold`):
+`mise ERROR sh failed: ./configure: exec: line 8: python: not
+found`.
+
+mise-base now installs `python3` alongside its other build deps.
+Bumps the plugin's snapshot_key from `mise-base-v1` to
+`mise-base-v2` so cached chain layers from older mise-base
+contents (no python3) get rebuilt; existing `setup-snapcompose`
+caches under the same `cache-key-prefix` will hit one cold pass
+to rebuild the mise-base layer then go warm.
+
+## Unreleased
+
 - **`mise` plugin deprecated; will be removed in v0.4.** Replace
   `plugins = [..., "mise", ...]` with `plugins = [..., "mise-base",
   "<lang>-runtime", ...]` (or use the `ruby` shortcut shipped in
