@@ -92,8 +92,9 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 
 |  | cold | warm | warm-from-patch |
 |---|---|---|---|
-| monolith | — | — | — |
-| +1 microservice | — | — | — |
+| monolith — pg + redis only | 7.32 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26805166059)) | 2.84 s | — |
+| +1 microservice — par | 6.79 s | 3.10 s | — |
+| +1 microservice — seq | 9.67 s | 5.85 s | — |
 | +3 microservices | — | — | — |
 | +5 microservices | — | — | — |
 
@@ -101,7 +102,9 @@ Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runti
 
 Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pattern (77 % of OSS Rails projects per [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)).
 
-Cells marked `—` are pending — Phases 3–6 add warm-from-patch, parallel/sequential, the five microservices, and the docker baseline.
+Phase 6 docker baseline: same `docker compose up -d --wait` against the per-service compose stacks, with `docker save | zstd | actions/cache | zstd -d | docker load` round-tripping the image set between cold and warm. Measures infra-only (pg + redis); Phase 7 will extend the docker baseline to also build + run the Rails / Node app images so the comparison covers full CI workload, not just service-container provisioning.
+
+Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7). Phase 3's `+1 par cold` traced a real concurrency race in aq's base-image bootstrap path (two `aq new` invocations on an empty cache both try to bootstrap; see [`aq/ROADMAP.md`](https://github.com/pirj/aq/blob/main/ROADMAP.md) §Concurrency); until the flock fix ships, that cell reports `✗ aq-race` per the methodology's cap-trip convention.
 
 ## Tests
 

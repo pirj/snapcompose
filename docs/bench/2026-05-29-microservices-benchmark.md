@@ -138,6 +138,36 @@ Reporting all three columns for docker is deliberate: the small `warm` → `warm
 
 A stress-test variant (patch every activated service) is interesting but not part of this benchmark — it would belong in a separate "patch fan-out" measurement.
 
+## Implementation status — walking-skeleton (Phases 1–7)
+
+The methodology above is the **target** for the production benchmark. The walking-skeleton implementation in [`snapcompose-benchmark`](https://github.com/pirj/snapcompose-benchmark) lands in phases (1 through 7) and currently differs from the target in three documented ways. These deviations let the table fill row-by-row while the underlying fixtures and instrumentation catch up.
+
+| Deviation | Walking-skeleton (today) | Target methodology |
+|---|---|---|
+| **N per cell** | 1 run | N ≥ 3, report median + spread |
+| **Ready signal** | `snapc run -- echo ready` returns / `docker compose up -d --wait` returns | HTTP probe to `/health` on host port 3001 |
+| **Warm-from-patch fixture** | Not yet wired (Phase 4 — A4) | Pre-patch / post-patch SHAs pinned in fixture |
+
+Phase 4 (A4) adds the warm-from-patch column, Phase 5 (A5) formalises the par/seq matrix shape (already in place across both workflows; see below), Phase 7 (A7) extends the matrix to +3 and +5 microservices. N ≥ 3 aggregation lands once all cells have shipped N=1 numbers — premature to wire it before the methodology stabilises.
+
+### par / seq matrix shape (A5)
+
+Both workflows (`bench-snapcompose.yml` and `bench-docker.yml`) implement the par / seq distinction structurally via a matrix include list:
+
+```yaml
+matrix:
+  include:
+    - { row: monolith, variant: na,  services: main }
+    - { row: plus1,    variant: par, services: main,node }
+    - { row: plus1,    variant: seq, services: main,node }
+```
+
+`variant: na` is the single cell for the monolith row (no par/seq distinction at row size 1). `par` and `seq` are sibling jobs whose cache keys are segregated (`${CACHE_KEY_BASE}-${row}-${variant}`) so the par cache doesn't pollute seq or vice versa. Each variant runs in its own GH Actions runner, so par-vs-seq comparisons are not biased by warm host state.
+
+### Known cap-trip — `+1 par cold` on snapcompose
+
+Phase 3's first run (https://github.com/pirj/snapcompose-benchmark/actions/runs/26804727138) surfaced a concurrent base-image bootstrap race in aq: two simultaneous `snapc run` invocations on an empty cache both attempt `bootstrap_base_image`, collide on the Alpine ISO download, and the boot path exits 2 mid-GRUB. Filed in [aq ROADMAP §Concurrency](https://github.com/pirj/aq/blob/main/ROADMAP.md). Until the flock fix ships, `+1 par cold` cells on the snapcompose side are reported as `✗ aq-race` per the cap-trip convention. `+1 par warm` is unaffected (base already cached on the warm path); the +1 seq variants and the docker baseline are unaffected.
+
 ## Methodology
 
 - N ≥ 3 runs per cell. Report **median** and **spread** (max − min). Outliers above 2× the median are flagged in a footnote, not silently dropped.
