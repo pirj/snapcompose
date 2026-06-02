@@ -194,6 +194,31 @@ Fields:
 | `cmd`        | yes      | Shell command. Executed inside the VM as the `rlock` user, with login shell (mise + PATH loaded), from `/home/rlock/repo`. Multi-line via TOML triple-quoted strings. |
 | `key_files`  | yes      | Array of paths / globs at the project root. Their concatenated content (in declared order) drives the cache key. Empty array is rejected — every cached layer needs an invalidation signal. |
 | `strategy`   | no       | `cached` (default) or `incremental`. See "Strategy contract" below. |
+| `kind`       | no       | `cold` (default) — disk-only snapshot, restore replays the chain. `live` — captures memory + disk, restore resumes the running VM mid-flight. Use `live` when warm-restore wall-clock matters (running pg containers, page cache, in-process state). Pairs with `AQ_MEMORY_SNAPSHOT=zstd-patch` for the "warm-from-patch" storage win — see below. |
+| `memory`     | no       | Only meaningful with `kind = "live"`. Memory ceiling (e.g. `"4G"`) the framework passes to `aq new --memory`. Without this the framework derives memory from active plugins' declarations. |
+
+#### Warm-from-patch: `kind = "live"` + `AQ_MEMORY_SNAPSHOT=zstd-patch`
+
+When a live prebuild layer's `key_files` content changes between two
+runs, the layer recomputes — but if you set `AQ_MEMORY_SNAPSHOT=zstd-patch`
+in the environment (e.g. in your CI workflow), the new `memory.bin`
+is stored as a `zstd --patch-from` delta against the cached parent's
+`memory.bin.zst`. The cache holds parent + a small binary patch
+instead of two full snapshots.
+
+```toml
+[prebuild.schema-load]
+cmd = "bin/rails db:schema:load"
+key_files = ["db/schema.rb", "db/migrate/**"]
+kind = "live"
+memory = "4G"
+```
+
+A single-migration edit then propagates as a kilobytes-scale patch
+instead of hundreds of megabytes of duplicate snapshot. Restore is
+transparently the chain-walked decompress + apply path. The cache-
+size delta is what the bench methodology's `warm-from-patch` column
+captures (see `docs/bench/2026-05-29-microservices-benchmark.md`).
 
 Order in `snapcompose.toml` source = order in the chain. Each section's
 synthesised plugin declares `deps = ["_prebuild-<previous-name>"]`, so
