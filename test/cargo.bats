@@ -7,12 +7,12 @@ setup() {
     cd "$BATS_TEST_TMPDIR"
 }
 
-@test "cargo plugin declares incremental cold snapshot + deps on mise" {
+@test "cargo plugin declares incremental cold snapshot + deps on rust-runtime" {
     run grep -q 'strategy *= *"incremental"' "$PLUGIN_DIR/plugin.toml"
     assert_success
     run grep -q 'kind *= *"cold"' "$PLUGIN_DIR/plugin.toml"
     assert_success
-    run grep -q 'deps *= *\["mise"\]' "$PLUGIN_DIR/plugin.toml"
+    run grep -q 'deps *= *\["rust-runtime"\]' "$PLUGIN_DIR/plugin.toml"
     assert_success
 }
 

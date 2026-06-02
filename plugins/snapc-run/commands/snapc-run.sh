@@ -163,6 +163,17 @@ if [[ ! -d "$AQ_STATE_DIR/$vm_name" ]]; then
                     ;;
             esac
         done
+        # Emit a warning per deprecated plugin in the explicit list.
+        # The framework's detect_triggers path already silently skips
+        # deprecated plugins from trigger-based auto-suggestion (see
+        # rlock/lib/plugin.sh), but explicit `plugins = [...]` activation
+        # bypasses that. Surface it so users notice before v0.4 removes
+        # the plugin entirely.
+        for _entry in "${expanded_plugins[@]}"; do
+            if plugin_is_deprecated "$_entry"; then
+                warn "Plugin '$_entry' is deprecated; see CHANGELOG.md for the migration path. v0.4 will remove it."
+            fi
+        done
         info "Activating ${#expanded_plugins[@]} plugin(s) from snapcompose.toml: ${expanded_plugins[*]}"
         local_triggered=("${expanded_plugins[@]}")
     else

@@ -183,6 +183,25 @@ Full design in `docs/superpowers/specs/2026-05-20-snapcompose-toml-and-prebuild.
   `test/fixtures/rails-pg-sample`), then add ecosystems as adopter
   demand surfaces.
 
+## Stale bats specs (pre-existing — surfaced during B4 audit 2026-06-02)
+
+Six bats tests have been failing since the bakeri.sh → snapcompose
+rename on 2026-05-27. They aren't caused by recent refactors;
+they're test debt that the rename missed.
+
+- [ ] **`test/snapc_wrapper.bats` references the old `bin/bake`
+  binary.** Repo was renamed `bakeri.sh` → `snapcompose` on
+  2026-05-27; CLI binary renamed `bake` → `snapc` in lockstep,
+  but the wrapper spec wasn't updated. 5 tests fail because the
+  spec invokes `$PROJECT_ROOT/bin/bake` (now `bin/snapc`). Either
+  delete `snapc_wrapper.bats` (the binary is now plain `snapc`
+  with no wrapping needed) or rewrite to target `bin/snapc`.
+- [ ] **`test/snapc_run.bats` "--no-push" test (#115).** Stub
+  setup doesn't satisfy the post-rename snapc-run.sh wiring; one
+  test exits with a different status than expected. Re-derive
+  the stub set and update the assertion. Low-priority — the
+  test exercises arg-parsing, not the cache-hit fast-path.
+
 ## Shared docker-engine layer
 
 `docker-engine`'s `snapshot_key` is a content hash that doesn't depend

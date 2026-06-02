@@ -7,12 +7,12 @@ setup() {
     cd "$BATS_TEST_TMPDIR"
 }
 
-@test "uv plugin declares incremental cold snapshot + deps on mise" {
+@test "uv plugin declares incremental cold snapshot + deps on python-runtime" {
     run grep -q 'strategy *= *"incremental"' "$PLUGIN_DIR/plugin.toml"
     assert_success
     run grep -q 'kind *= *"cold"' "$PLUGIN_DIR/plugin.toml"
     assert_success
-    run grep -q 'deps *= *\["mise"\]' "$PLUGIN_DIR/plugin.toml"
+    run grep -q 'deps *= *\["python-runtime"\]' "$PLUGIN_DIR/plugin.toml"
     assert_success
 }
 

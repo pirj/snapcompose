@@ -7,12 +7,12 @@ setup() {
     cd "$BATS_TEST_TMPDIR"
 }
 
-@test "pnpm plugin declares incremental cold snapshot + deps on mise" {
+@test "pnpm plugin declares incremental cold snapshot + deps on nodejs-runtime" {
     run grep -q 'strategy *= *"incremental"' "$PLUGIN_DIR/plugin.toml"
     assert_success
     run grep -q 'kind *= *"cold"' "$PLUGIN_DIR/plugin.toml"
     assert_success
-    run grep -q 'deps *= *\["mise"\]' "$PLUGIN_DIR/plugin.toml"
+    run grep -q 'deps *= *\["nodejs-runtime"\]' "$PLUGIN_DIR/plugin.toml"
     assert_success
 }
 

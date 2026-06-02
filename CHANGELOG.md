@@ -30,6 +30,22 @@ Companion repos to bump in lockstep:
 
 ## Unreleased
 
+- **`mise` plugin deprecated; will be removed in v0.4.** Replace
+  `plugins = [..., "mise", ...]` with `plugins = [..., "mise-base",
+  "<lang>-runtime", ...]` (or use the `ruby` shortcut shipped in
+  v0.3.0, which expands to `mise-base + ruby-runtime + ruby-bundler`).
+  Old `snapcompose.toml` files without an explicit `plugins = [...]`
+  still trigger the monolithic mise plugin via `.ruby-version` /
+  `.tool-versions` / etc., so the deprecation is non-breaking at
+  v0.3. v0.4 will drop the trigger list and the plugin shell;
+  remove it from any explicit `plugins = [...]` arrays before
+  bumping. Rationale: a single mise layer mixes Ruby + Node +
+  Python + Go + Rust into one cache key, so changing the Python
+  pin invalidates the Ruby layer too. The per-language split keys
+  each language independently. See
+  [`plugins/mise-base/plugin.toml`](plugins/mise-base/plugin.toml)
+  +
+  [`plugins/{ruby,python,nodejs,go,rust}-runtime/plugin.toml`](plugins/).
 - **CI**: `.github/workflows/ci.yml` runs the bats suite (125
   tests, ~seconds wall-clock) on push/PR. Pure-bash unit tests
   against plugin.toml + lib functions — no VM boots, no qemu, no

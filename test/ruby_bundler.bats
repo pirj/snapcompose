@@ -7,14 +7,14 @@ setup() {
     cd "$BATS_TEST_TMPDIR"
 }
 
-@test "ruby-bundler plugin declares incremental cold snapshot + deps on mise" {
+@test "ruby-bundler plugin declares incremental cold snapshot + deps on ruby-runtime" {
     run grep -q '^\[snapshot\]' "$PLUGIN_DIR/plugin.toml"
     assert_success
     run grep -q 'strategy *= *"incremental"' "$PLUGIN_DIR/plugin.toml"
     assert_success
     run grep -q 'kind *= *"cold"' "$PLUGIN_DIR/plugin.toml"
     assert_success
-    run grep -q 'deps *= *\["mise"\]' "$PLUGIN_DIR/plugin.toml"
+    run grep -q 'deps *= *\["ruby-runtime"\]' "$PLUGIN_DIR/plugin.toml"
     assert_success
 }
 
