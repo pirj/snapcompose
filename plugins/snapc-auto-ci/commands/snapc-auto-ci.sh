@@ -135,7 +135,17 @@ for step in (chosen_job.get("steps") or []):
         for p in ("mise-base", "nodejs-runtime"):
             if p not in plugins:
                 plugins.append(p)
-        installer = "pnpm" if (project_root / "pnpm-lock.yaml").exists() else "npm"
+        # Lockfile precedence: pnpm-lock.yaml > yarn.lock > package-lock.json.
+        # Yarn (yarn.lock) maps to npm in current snapcompose plugins — there's
+        # no dedicated yarn installer yet. Document the gap in the generated
+        # snapcompose.toml so the maintainer can hand-tweak if their CI
+        # specifically needs yarn semantics (yarn workspaces, etc.).
+        if (project_root / "pnpm-lock.yaml").exists():
+            installer = "pnpm"
+        elif (project_root / "yarn.lock").exists():
+            installer = "npm"  # fallback; see TODO above
+        else:
+            installer = "npm"
         if installer not in plugins:
             plugins.append(installer)
     elif lang == "go":
