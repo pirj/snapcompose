@@ -107,7 +107,19 @@ Phase 6 docker baseline: same `docker compose up -d --wait` against the per-serv
 
 Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7).
 
-Phase 3's first benchmark run surfaced two aq-side issues on the multi-VM cold path: `+1 par cold` raced on concurrent base-image bootstrap; `+1 seq cold` overran the historic fixed 60 s incoming-migration poll budget against 1.25 GiB of staged chain memory. Both are fixed in [aq v2.5.45 + v2.5.46 + v2.5.47](https://github.com/pirj/aq/blob/main/CHANGELOG.md) (flock with noclobber-safe append open mode + size-scaled migrate budget) and cut into the bench fixture via [setup-snapcompose v3.1.3](https://github.com/pirj/setup-snapcompose/blob/main/CHANGELOG.md). Walking-skeleton fixtures for the +3 row (Python/FastAPI + Go/net-http) are in place; +5 row (Sinatra + Python-alt) is the deferred extension.
+Phase 3's bench iteration surfaced **seven distinct concurrency bugs** on the multi-VM cold path, all fixed across the v3.1.7 stack:
+
+| Bug | Surfaced in | Fix |
+|---|---|---|
+| `bootstrap_base_image` race (two concurrent ISO downloads) | `+1 par cold` | aq v2.5.45 — `flock` around `ensure_base_image` |
+| Lockfile open mode (`9>` rejected by `set -fC` noclobber) | `+1 par cold` (post-v2.5.45) | aq v2.5.47 — switch to `9>>` append-open |
+| Fixed 60 s incoming-migration poll budget overrun | `+1 seq cold` | aq v2.5.46/v2.5.48 — budget scales with staged memory size |
+| `mise install node` needs Python on Alpine musl | `+1 par cold` (post-flock fix) | snapcompose v0.3.3 — `mise-base` adds `python3` |
+| Concurrent `snapshot_save` qcow2 resize-lock contention | `+1 par cold` (post-aq fixes) | rlock v0.1.14 — `flock` around `snapshot_save` |
+| Reader window during `rm -f` + `qemu-img convert` rewrite | `+1 par cold` (post-rlock flock) | rlock v0.1.15 — atomic-rename of every artefact |
+| zstd `--patch-from` 2 GiB CLI single-shot ceiling | `warm-from-patch` save | aq v2.5.51 — fallback to plain pzstd when input > 2 GiB |
+
+All cut into the bench fixture via [setup-snapcompose v3.1.7](https://github.com/pirj/setup-snapcompose/blob/main/CHANGELOG.md). Walking-skeleton fixtures for the +3 row (Python/FastAPI + Go/net-http) are in place; +5 row (Sinatra + Python-alt) is the deferred extension. The `aq` ROADMAP §"QEMU-native zstd" is parked IN WAITING on upstream QEMU 11.x — `multifd-compression=zstd` for `file:` URI is rejected on QEMU 10.0.3 / 11.0 as a documented architectural limit (mapped-ram requires seekable fd; compression uses non-seekable pipe), no fix in the 11.0 release.
 
 ## Tests
 
