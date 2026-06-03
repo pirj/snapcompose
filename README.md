@@ -89,17 +89,32 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 | +3 microservices | — | — | — |
 | +5 microservices | — | — | — |
 
-### docker (baseline)
+### gha-services (OSS Rails CI baseline)
 
-|  | cold | warm | warm-from-patch |
-|---|---|---|---|
-| monolith — pg + redis only | 7.32 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26805166059)) | 2.84 s | — |
-| +1 microservice — par | 6.79 s | 3.10 s | — |
-| +1 microservice — seq | 9.67 s | 5.85 s | — |
-| +3 microservices — par | 9.64 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26808652927)) | 5.71 s | — |
-| +3 microservices — seq | 16.38 s | 11.52 s | — |
-| +5 microservices — par | 9.45 s ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26879954605)) | 6.12 s | — |
-| +5 microservices — seq | 20.62 s | 17.27 s | — |
+The actual pattern ~77 % of OSS Rails projects use on GitHub Actions
+([survey](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)):
+workflow YAML's `services:` keyword spins up pg + redis containers,
+`ruby/setup-ruby` installs Ruby, `bundle install` then
+`bin/rails db:create db:migrate test`. The test suite includes a
+`HealthCheckTest` that exercises pg (via ActiveRecord) + redis
+(via `Redis.ping`) so the timing reflects a real integration step,
+not just provisioning.
+
+This is the head-to-head comparison snapcompose's `monolith` row
+is meant to beat. Cold = first run on a fresh CI runner. Warm =
+`actions/cache` restored `vendor/bundle`. snapcompose's equivalent
+runs the SAME `bin/rails db:create db:migrate test` command
+inside the snapshot-restored VM — apples to apples.
+
+|  | cold | warm |
+|---|---|---|
+| monolith — `services:` pg + redis + setup-ruby + bundle + rails test | — | — |
+
++1 / +3 / +5 rows omitted — those shapes are rare in OSS-on-GHA
+and patterns vary too widely for a single canonical baseline.
+Snapcompose's +N rows below are snapcompose-only numbers,
+included to show how the layered snapshot cache behaves for
+multi-service apps (the closed-source / private-monorepo case).
 
 Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runtime + ruby-bundler` plugins, plus `docker-compose` for pg + redis service containers. The 828 s cold pays full compile-Ruby-from-source + bundle install + container start; the 12.8 s warm restores the entire live state — pg's shared buffers, Redis's working set, the Ruby/bundler trees, and the running containers — from a layered qcow2 snapshot.
 
@@ -107,9 +122,22 @@ Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runti
 
 Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pattern (77 % of OSS Rails projects per [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)).
 
-Phase 6 docker baseline: same `docker compose up -d --wait` against the per-service compose stacks, with `docker save | zstd | actions/cache | zstd -d | docker load` round-tripping the image set between cold and warm. Measures infra-only (pg + redis); Phase 7 will extend the docker baseline to also build + run the Rails / Node app images so the comparison covers full CI workload, not just service-container provisioning.
+**Baseline refactor 2026-06-03**: the previous `bench-docker.yml`
+that measured `docker compose up -d --wait` against the pg+redis
+infra stack only was deleted — wrong baseline for the outreach
+pitch. The new `bench-gha-services.yml` mirrors what a real
+maintainer sees when they look at their `ci.yml`: GHA `services:`
++ `setup-ruby` + `bundle install` + `bin/rails test`. The
+snapcompose-side `bench-snapcompose.yml` monolith now runs the
+same `rails test` command inside the snapshot-restored VM, so
+the two numbers are directly comparable.
 
-Cells marked `—` are pending. **Docker baseline matrix is now 100% complete** (all 14 cells across monolith / +1 / +3 / +5 × cold / warm × par / seq). The snapcompose table's monolith cold + warm cells are filled; +1 / +3 / +5 multi-VM cells are in active iteration (see fix-stack table below — current bench run targets v3.1.8). The warm-from-patch column is wired but populates after the +N cells stabilise.
+Cells marked `—` are pending the next bench run. The snapcompose
+table's monolith cold / warm / warm-from-patch cells are filled
+and reproduce across two iterations (12.12 s / 12.06 s for warm;
+48.12 s / 47.54 s for warm-from-patch, < 2 % variance). +1 / +3
+/ +5 cells iterate on the chain-reconstruction issue tracked in
+`rlock/TODO.md`.
 
 Phase 3's bench iteration surfaced **seven distinct concurrency bugs** on the multi-VM cold path, all fixed across the v3.1.7 stack:
 
