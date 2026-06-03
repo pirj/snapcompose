@@ -1,0 +1,10 @@
+description = "Generate snapcompose.toml from .github/workflows/*.yml services: blocks"
+protocol_version = "1"
+deps = []
+host_deps = ["python3"]
+# Command-only plugin (no triggers, no [snapshot] section). The framework's
+# dispatch_command falls through to all discoverable plugins for command
+# lookup, so `snapc auto-ci` works without snapc-auto-ci needing to appear
+# in the active plugin chain via a file trigger.
+triggers = []
+commands = ["snapc-auto-ci"]
