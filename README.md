@@ -31,6 +31,7 @@ Aimed at CI/PR workloads where:
 **Commands**
 
 - **`snapc run -- <cmd>`** — Provision the VM (walking the chain) and execute the command. The CI workhorse.
+- **`snapc auto-ci`** — Generate `snapcompose.toml` + a synthesised docker-compose from your existing `.github/workflows/*.yml` `services:` block + `setup-<lang>` actions. The frictionless-onboarding path for projects that already have a `services:`-based CI workflow.
 - **`snapc pr <pr-url>`** — Sandbox an untrusted-fork PR (in progress).
 - **`snapc cache`** — Cache management: `--gc`, `--push <oci-ref>`, `--pull <oci-ref>`.
 
