@@ -83,7 +83,7 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 
 |  | cold | warm | warm-from-patch |
 |---|---|---|---|
-| **monolith — Rails app + pg + redis** (Phase 2) | **828.34 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26765152927)) | **12.84 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26766024326)) — **64×** | — |
+| **monolith — Rails app + pg + redis** (Phase 2) | **828.34 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26765152927)) | **12.84 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26766024326)) — **64×** | **48.12 s** ([run](https://github.com/pirj/snapcompose-benchmark/actions/runs/26878173765)) — **17×**¹ |
 | monolith — pg + redis only (Phase 1) | 143.17 s | 7.93 s — 18× | — |
 | +1 microservice | — | — | — |
 | +3 microservices | — | — | — |
@@ -102,6 +102,8 @@ Methodology: [`docs/bench/2026-05-29-microservices-benchmark.md`](docs/bench/202
 | +5 microservices — seq | 20.62 s | 17.27 s | — |
 
 Phase 2 fixture: a Rails 8 app running natively in the VM via `mise + ruby-runtime + ruby-bundler` plugins, plus `docker-compose` for pg + redis service containers. The 828 s cold pays full compile-Ruby-from-source + bundle install + container start; the 12.8 s warm restores the entire live state — pg's shared buffers, Redis's working set, the Ruby/bundler trees, and the running containers — from a layered qcow2 snapshot.
+
+¹ Phase 4 fixture: `[prebuild.fixture-marker]` live layer in `services/main` whose `key_files = [".snapcompose-bench-marker"]`. The workflow flips the marker between cold and warm-from-patch runs, forcing the leaf layer to rebuild while every ancestor in the chain (docker-engine, docker-compose, mise-base, ruby-runtime, ruby-bundler) restores warm. The 48 s wall-clock = 12 s warm-restore of ancestors + ~30 s rebuild + re-snapshot of the patched leaf. `patch_bytes=0` for this row because the Rails fixture's memory.bin exceeds 2 GiB, so aq v2.5.51's fallback to plain pzstd fires instead of `zstd --patch-from` — the storage win lands on smaller-VM fixtures and is the headline metric once `aq/ROADMAP.md §"QEMU-native zstd"` lands (or a future per-page delta scheme replaces the all-or-nothing patch-from).
 
 Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pattern (77 % of OSS Rails projects per [`../meta/research-2026-05-30-rails-oss-ci-survey.md`](https://github.com/pirj/meta/blob/main/research-2026-05-30-rails-oss-ci-survey.md)).
 
