@@ -107,7 +107,7 @@ Phase 1 fixture: pg + redis only, matching the dominant Rails CI `services:` pat
 
 Phase 6 docker baseline: same `docker compose up -d --wait` against the per-service compose stacks, with `docker save | zstd | actions/cache | zstd -d | docker load` round-tripping the image set between cold and warm. Measures infra-only (pg + redis); Phase 7 will extend the docker baseline to also build + run the Rails / Node app images so the comparison covers full CI workload, not just service-container provisioning.
 
-Cells marked `—` are pending. Phases 3–7 add the +1 / +3 / +5 microservice rows on the snapcompose side, warm-from-patch (Phase 4), formal par/seq sub-cells (Phase 5), and the +3 / +5 docker-baseline rows (Phase 7).
+Cells marked `—` are pending. **Docker baseline matrix is now 100% complete** (all 14 cells across monolith / +1 / +3 / +5 × cold / warm × par / seq). The snapcompose table's monolith cold + warm cells are filled; +1 / +3 / +5 multi-VM cells are in active iteration (see fix-stack table below — current bench run targets v3.1.8). The warm-from-patch column is wired but populates after the +N cells stabilise.
 
 Phase 3's bench iteration surfaced **seven distinct concurrency bugs** on the multi-VM cold path, all fixed across the v3.1.7 stack:
 
