@@ -5,11 +5,18 @@ source "${RL_LIB_DIR}/ui.sh"
 # Snapshot key = constant per mise package version (we ride Alpine's
 # packaging of mise). Bump the suffix when the apk-install set changes
 # so cached chain layers from older mise-base contents get rebuilt.
-# v2 adds python3 — required by Node's ./configure during mise's
+# v3 adds bzip2-dev, sqlite-dev, xz-dev — Python 3.12.x's source build
+# detects these at ./configure time and skips _bz2, _sqlite3, _lzma
+# stdlib C extensions when absent. Downstream consumers (e.g. ruby-
+# build's Python helpers, project code importing those modules) then
+# trip ModuleNotFoundError. Without them, snapcompose-benchmark
+# plus5 par cold trips at mise's Ruby compile because ruby-build's
+# Python helpers call into bz2 module.
+# v2 added python3 — required by Node's ./configure during mise's
 # from-source nodejs install (Alpine ships glibc-only binaries from
 # nodejs.org, so mise falls back to source build on musl).
 snapshot_key() {
-    printf 'mise-base-v2' | sha256sum | cut -d' ' -f1
+    printf 'mise-base-v3' | sha256sum | cut -d' ' -f1
 }
 
 # Install mise + the build deps that mise needs when it compiles language
@@ -25,7 +32,13 @@ set -eu
 # python3: required by Node's ./configure (v8 build) when mise compiles
 # nodejs from source. nodejs.org's official binaries are glibc-only;
 # Alpine is musl, so mise must source-build node.
-apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev python3
+# bzip2-dev / sqlite-dev / xz-dev: needed by Python 3.x's source build
+# so the _bz2 / _sqlite3 / _lzma stdlib C extensions get built. Without
+# them, Python compiles cleanly but `import bz2` etc. trips
+# ModuleNotFoundError. ruby-build's Python helpers hit this path on
+# +5 par cold (mise compiles Python concurrently with Ruby).
+apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev python3 \
+        bzip2-dev sqlite-dev xz-dev
 
 # Activate per-user so subsequent layers' bash -lc shells see mise on
 # PATH and have mise shims wired up.

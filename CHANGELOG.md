@@ -30,6 +30,26 @@ Companion repos to bump in lockstep:
 
 ## Unreleased
 
+## v0.3.4 — 2026-06-03 — mise-base adds bzip2-dev / sqlite-dev / xz-dev (Python stdlib C extensions)
+
+Python 3.x's source build silently skips `_bz2`, `_sqlite3`, and
+`_lzma` stdlib C extensions when the corresponding system libs +
+headers aren't present at `./configure` time. The compile
+completes cleanly but `import bz2` / `import sqlite3` /
+`import lzma` then trips `ModuleNotFoundError` at runtime.
+Surfaced by snapcompose-benchmark `plus5 par cold`
+(run 26880093017): mise compiled Python 3.12.7 concurrently
+with the Ruby build, ruby-build's Python helpers hit the
+missing `_bz2` and the whole Ruby compile bailed.
+
+`mise-base` now installs `bzip2-dev`, `sqlite-dev`, `xz-dev`
+alongside the existing `openssl-dev` / `readline-dev` /
+`yaml-dev` / `zlib-dev` / `libffi-dev` set. Bumps the plugin
+snapshot_key v2 → v3 so cached chain layers from older
+`mise-base` contents rebuild. Existing caches under the same
+`cache-key-prefix` hit one cold pass to rebuild the mise-base
+layer then go warm.
+
 ## v0.3.3 — 2026-06-02 — mise-base installs python3 (Node source-build fix)
 
 `mise install node` on Alpine compiles from source because the
