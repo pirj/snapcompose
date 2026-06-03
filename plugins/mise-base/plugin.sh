@@ -16,7 +16,7 @@ source "${RL_LIB_DIR}/ui.sh"
 # from-source nodejs install (Alpine ships glibc-only binaries from
 # nodejs.org, so mise falls back to source build on musl).
 snapshot_key() {
-    printf 'mise-base-v3' | sha256sum | cut -d' ' -f1
+    printf 'mise-base-v4' | sha256sum | cut -d' ' -f1
 }
 
 # Install mise + the build deps that mise needs when it compiles language
@@ -41,11 +41,29 @@ apk add mise build-base openssl-dev readline-dev yaml-dev zlib-dev libffi-dev py
         bzip2-dev sqlite-dev xz-dev
 
 # Activate per-user so subsequent layers' bash -lc shells see mise on
-# PATH and have mise shims wired up.
+# PATH and have mise shims wired up. Also pin
+# `idiomatic_version_file_enable_tools` explicitly so the layer chain
+# doesn't break when mise crosses 2025.10.0 — that release flips the
+# default for the per-language `.ruby-version` / `.python-version` /
+# `.nvmrc` / `.node-version` / `.go-version` discovery from enabled
+# to DISABLED. Without the pin, ruby-runtime / python-runtime /
+# nodejs-runtime / go-runtime plugins would all fail to detect the
+# project's pinned version after that mise version lands on the host.
+# Alpine 3.22 currently ships mise 2025.5.10-r0; the warning surfaces
+# on every `mise install` invocation, telling us this exact pin will
+# matter when Alpine updates to a later mise.
 su -l rlock -c 'bash -l -s' <<'RLOCK'
 set -eu
 grep -q "mise activate" ~/.profile 2>/dev/null \
     || echo 'eval "$(mise activate bash)"' >> ~/.profile
+mkdir -p ~/.config/mise
+cat > ~/.config/mise/config.toml <<'TOML'
+[settings]
+# Pin the pre-2025.10.0 default explicitly so the per-language
+# runtime plugins keep reading .ruby-version / .python-version /
+# .nvmrc / .node-version / .go-version after mise's default flips.
+idiomatic_version_file_enable_tools = ["ruby", "python", "node", "go", "rust"]
+TOML
 RLOCK
 SH
 }

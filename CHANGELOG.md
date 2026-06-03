@@ -30,6 +30,35 @@ Companion repos to bump in lockstep:
 
 ## Unreleased
 
+## v0.3.5 — 2026-06-03 — mise-base pins idiomatic_version_file_enable_tools (future-proof for mise 2025.10+)
+
+mise 2025.10.0 flips the default for
+`idiomatic_version_file_enable_tools` from enabled to disabled.
+Once that mise version lands on the host (via Alpine's apk update),
+the per-language runtime plugins (`ruby-runtime`,
+`python-runtime`, `nodejs-runtime`, `go-runtime`) silently stop
+reading `.ruby-version` / `.python-version` / `.nvmrc` /
+`.node-version` / `.go-version` files at install time, and
+`mise install` falls back to whatever's in `mise.toml` — or
+errors when no version is named at all.
+
+Alpine 3.22 currently ships `mise 2025.5.10-r0`, so the pre-flip
+behaviour is still active. The deprecation warning is visible on
+every `mise install` invocation in CI logs today — that warning
+is the tell that we need this pin BEFORE Alpine updates.
+
+`mise-base` now writes `~/.config/mise/config.toml` for the
+`rlock` user with:
+
+```toml
+[settings]
+idiomatic_version_file_enable_tools = ["ruby", "python", "node", "go", "rust"]
+```
+
+Bumps snapshot_key v3 → v4 so cached chain layers rebuild. The
+chain layers downstream (mise installs) read the same value
+either way; the pin only matters once mise default changes.
+
 ## v0.3.4 — 2026-06-03 — mise-base adds bzip2-dev / sqlite-dev / xz-dev (Python stdlib C extensions)
 
 Python 3.x's source build silently skips `_bz2`, `_sqlite3`, and
